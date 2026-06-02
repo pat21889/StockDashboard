@@ -33,14 +33,6 @@ export default function DashboardPage() {
   const allUsSymbols = [...new Set([...usFavoriteSymbols, ...portfolioSymbols])];
   useFinnhubSocket(allUsSymbols);
 
-  const handleSelectStock = (stock) => {
-    setSelectedStock(stock);
-  };
-
-  const handleAddFavorite = (symbol, market, name) => {
-    addFavorite(symbol, market, name);
-  };
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <TopBar title="Dashboard" />
@@ -70,14 +62,14 @@ export default function DashboardPage() {
               <FavoritesPanel
                 favorites={favorites}
                 onRemove={removeFavorite}
-                onSelect={handleSelectStock}
+                onSelect={setSelectedStock}
                 selectedSymbol={selectedStock?.symbol}
               />
             </div>
             <div className="flex-1 min-w-0">
               <SearchPanel
-                onSelect={handleSelectStock}
-                onAddFavorite={handleAddFavorite}
+                onSelect={setSelectedStock}
+                onAddFavorite={addFavorite}
                 isFavorite={isFavorite}
               />
             </div>

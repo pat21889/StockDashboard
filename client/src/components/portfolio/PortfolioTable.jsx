@@ -1,7 +1,7 @@
 import PriceChangeTag from '../stocks/PriceChangeTag';
 import LoadingSpinner from '../common/LoadingSpinner';
 
-export default function PortfolioTable({ positions, loading, onDelete }) {
+export default function PortfolioTable({ positions, loading }) {
   if (loading) return <div className="flex justify-center py-12"><LoadingSpinner size="lg" /></div>;
   if (!positions.length) return (
     <div className="text-center py-12 text-gray-500">
@@ -14,7 +14,7 @@ export default function PortfolioTable({ positions, loading, onDelete }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-800 bg-gray-900/60">
-            {['Symbol', 'Qty', 'Avg Cost', 'Current Price', 'Market Value', 'Unrealized P&L', ''].map((h) => (
+            {['Symbol', 'Qty', 'Avg Cost', 'Current Price', 'Market Value', 'Unrealized P&L'].map((h) => (
               <th key={h} className="px-4 py-3 text-left text-xs text-gray-400 font-medium uppercase tracking-wider">{h}</th>
             ))}
           </tr>
@@ -38,7 +38,6 @@ export default function PortfolioTable({ positions, loading, onDelete }) {
                   </span>
                 ) : '—'}
               </td>
-              <td className="px-4 py-3" />
             </tr>
           ))}
         </tbody>

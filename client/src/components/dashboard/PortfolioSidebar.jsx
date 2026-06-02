@@ -2,10 +2,9 @@ import { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import usePortfolioStore from '../../store/usePortfolioStore';
 import { useSETPortfolio } from '../../hooks/useSETPortfolio';
-import useSocketStore from '../../store/useSocketStore';
+import { useMergedPrices } from '../../hooks/useMergedPrices';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
-
-const FRESH_MS = 5 * 60 * 1000;
+import MarketBadge from '../common/MarketBadge';
 
 const FILTERS = ['All', 'US', 'TH'];
 
@@ -39,28 +38,25 @@ export default function PortfolioSidebar() {
   const [filter, setFilter] = useState('All');
   const [currency, setCurrency] = useState('USD');
 
-  const wsPrices = useSocketStore(s => s.prices);
-  const quotePrices = usePortfolioStore(s => s.quotePrices);
+  const mergedPrices = useMergedPrices();
   const usdThbRate = useExchangeRate();
   const getNasdaqPositions = usePortfolioStore(s => s.getPositions);
-  const { getPositions: getSetPositions } = useSETPortfolio();
+  const { positions: rawSetPositions } = useSETPortfolio();
 
-  const freshWsPrices = useMemo(() => {
-    const now = Date.now();
-    return Object.fromEntries(
-      Object.entries(wsPrices).filter(([, v]) => now - (v.receivedAt ?? 0) < FRESH_MS)
-    );
-  }, [wsPrices]);
+  const nasdaqPositions = useMemo(
+    () => getNasdaqPositions(mergedPrices).map(p => ({ ...p, market: 'US' })),
+    [mergedPrices, getNasdaqPositions]
+  );
+  const setPositions = useMemo(
+    () => rawSetPositions.map(p => ({ ...p, market: 'TH' })),
+    [rawSetPositions]
+  );
 
-  const mergedPrices = useMemo(() => ({ ...quotePrices, ...freshWsPrices }), [quotePrices, freshWsPrices]);
-
-  const nasdaqPositions = getNasdaqPositions(mergedPrices).map(p => ({ ...p, market: 'US' }));
-  const setPositions = getSetPositions().map(p => ({ ...p, market: 'TH' }));
-
-  const allPositions = [...nasdaqPositions, ...setPositions];
-  const visiblePositions = filter === 'All'
-    ? allPositions
-    : allPositions.filter(p => p.market === filter);
+  const allPositions = useMemo(() => [...nasdaqPositions, ...setPositions], [nasdaqPositions, setPositions]);
+  const visiblePositions = useMemo(
+    () => filter === 'All' ? allPositions : allPositions.filter(p => p.market === filter),
+    [allPositions, filter]
+  );
 
   const toDisplayValue = (pos) => {
     const mv = pos.marketValue ?? (pos.currentPrice != null ? pos.currentPrice * pos.quantity : null);
@@ -75,16 +71,20 @@ export default function PortfolioSidebar() {
     return pos.market === 'US' ? pl * usdThbRate : pl;
   };
 
-  // Pie chart data — reflects current filter (All / US / TH)
-  const piePositions = visiblePositions.filter(p => toDisplayValue(p) != null && toDisplayValue(p) > 0);
-  const totalValue = piePositions.reduce((s, p) => s + (toDisplayValue(p) ?? 0), 0);
+  // Pre-compute display values once per position to avoid repeated currency conversion
+  const enrichedPositions = useMemo(
+    () => visiblePositions.map(p => ({ ...p, displayValue: toDisplayValue(p), displayPL: toDisplayPL(p) })),
+    [visiblePositions, currency, usdThbRate]
+  );
+
+  const piePositions = enrichedPositions.filter(p => p.displayValue != null && p.displayValue > 0);
+  const totalValue = piePositions.reduce((s, p) => s + p.displayValue, 0);
   const pieData = piePositions.map(p => ({
     symbol: p.symbol,
-    value: toDisplayValue(p) ?? 0,
-    pct: totalValue > 0 ? ((toDisplayValue(p) ?? 0) / totalValue) * 100 : 0,
+    value: p.displayValue,
+    pct: totalValue > 0 ? (p.displayValue / totalValue) * 100 : 0,
   }));
-
-  const totalDisplayPL = visiblePositions.reduce((s, p) => s + (toDisplayPL(p) || 0), 0);
+  const totalDisplayPL = enrichedPositions.reduce((s, p) => s + (p.displayPL || 0), 0);
 
   return (
     <div className="w-72 flex-shrink-0 bg-gray-800 rounded-xl flex flex-col p-3 overflow-hidden">
@@ -146,7 +146,7 @@ export default function PortfolioSidebar() {
       )}
 
       {/* Total P&L */}
-      {visiblePositions.length > 0 && (
+      {enrichedPositions.length > 0 && (
         <div className="flex-shrink-0 flex justify-between items-center py-2 border-t border-gray-700 mb-1">
           <span className="text-xs text-gray-400">Total P&L</span>
           <span className={`text-sm font-semibold ${totalDisplayPL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -157,16 +157,13 @@ export default function PortfolioSidebar() {
 
       {/* Positions list */}
       <div className="overflow-y-auto flex-1 space-y-1 min-h-0">
-        {visiblePositions.length === 0 && (
+        {enrichedPositions.length === 0 && (
           <div className="text-xs text-gray-500 text-center py-4">
             {allPositions.length === 0 ? 'Add trades to see portfolio' : 'No positions in this market'}
           </div>
         )}
-        {visiblePositions.map((pos, i) => {
-          const displayVal = toDisplayValue(pos);
-          const displayPL = toDisplayPL(pos);
-          const allocPct = displayVal != null && totalValue > 0 ? (displayVal / totalValue) * 100 : null;
-
+        {enrichedPositions.map((pos, i) => {
+          const allocPct = pos.displayValue != null && totalValue > 0 ? (pos.displayValue / totalValue) * 100 : null;
           return (
             <div key={`${pos.symbol}-${pos.market}`} className="px-2 py-2 rounded hover:bg-gray-700 transition-colors">
               <div className="flex items-center justify-between">
@@ -176,11 +173,7 @@ export default function PortfolioSidebar() {
                     style={{ background: COLORS[i % COLORS.length] }}
                   />
                   <span className="text-sm font-medium text-white truncate">{pos.symbol}</span>
-                  <span className={`text-xs px-1 py-0.5 rounded flex-shrink-0 ${
-                    pos.market === 'US' ? 'bg-blue-900/60 text-blue-300' : 'bg-orange-900/60 text-orange-300'
-                  }`}>
-                    {pos.market}
-                  </span>
+                  <MarketBadge market={pos.market} />
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {allocPct != null && (
@@ -190,9 +183,9 @@ export default function PortfolioSidebar() {
                 </div>
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-gray-400">{displayVal != null ? fmt(displayVal, currency) : '--'}</span>
-                <span className={`text-xs font-medium ${displayPL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {displayPL >= 0 ? '+' : ''}{fmt(displayPL, currency)}
+                <span className="text-xs text-gray-400">{pos.displayValue != null ? fmt(pos.displayValue, currency) : '--'}</span>
+                <span className={`text-xs font-medium ${pos.displayPL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {pos.displayPL >= 0 ? '+' : ''}{fmt(pos.displayPL, currency)}
                   {pos.plPct != null && ` (${pos.plPct >= 0 ? '+' : ''}${pos.plPct.toFixed(1)}%)`}
                 </span>
               </div>

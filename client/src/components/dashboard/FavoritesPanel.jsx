@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useSocketStore from '../../store/useSocketStore';
+import MarketBadge from '../common/MarketBadge';
 
 const FILTERS = ['all', 'US', 'TH'];
 
@@ -56,11 +57,7 @@ export default function FavoritesPanel({ favorites, onRemove, onSelect, selected
                   <div className="text-sm font-medium text-white truncate">{fav.symbol}</div>
                   {fav.name && <div className="text-xs text-gray-400 truncate">{fav.name}</div>}
                 </div>
-                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                  fav.market === 'US' ? 'bg-blue-900/60 text-blue-300' : 'bg-orange-900/60 text-orange-300'
-                }`}>
-                  {fav.market}
-                </span>
+                <MarketBadge market={fav.market} />
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {price != null && (

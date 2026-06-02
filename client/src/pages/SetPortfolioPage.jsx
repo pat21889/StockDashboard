@@ -77,8 +77,7 @@ function SETTradeForm({ addTrade, onAdded }) {
 }
 
 export default function SetPortfolioPage() {
-  const { loading, error, getPositions, fetchTrades, addTrade } = useSETPortfolio();
-  const positions = getPositions();
+  const { loading, error, positions, fetchTrades, addTrade } = useSETPortfolio();
 
   return (
     <div className="flex flex-col h-full">

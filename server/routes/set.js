@@ -1,9 +1,8 @@
 const express = require('express');
 const db = require('../db/database');
 const { getTHQuotes } = require('../services/yahooService');
+const validateTrade = require('../middleware/validateTrade');
 const router = express.Router();
-
-// --- Manual trade CRUD (mirrors nasdaq.js but in THB) ---
 
 router.get('/trades', (req, res) => {
   const { symbol } = req.query;
@@ -13,17 +12,8 @@ router.get('/trades', (req, res) => {
   res.json(rows);
 });
 
-router.post('/trades', (req, res) => {
+router.post('/trades', validateTrade, (req, res) => {
   const { symbol, side, quantity, price, trade_date, note, source } = req.body;
-  if (!symbol || !side || !quantity || !price || !trade_date) {
-    return res.status(400).json({ error: 'symbol, side, quantity, price, and trade_date are required' });
-  }
-  if (!['BUY', 'SELL'].includes(side.toUpperCase())) {
-    return res.status(400).json({ error: 'side must be BUY or SELL' });
-  }
-  if (quantity <= 0 || price <= 0) {
-    return res.status(400).json({ error: 'quantity and price must be positive' });
-  }
   const result = db.prepare(`
     INSERT INTO set_manual_trades (symbol, side, quantity, price, trade_date, note, source)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -32,7 +22,7 @@ router.post('/trades', (req, res) => {
   res.status(201).json(row);
 });
 
-router.put('/trades/:id', (req, res) => {
+router.put('/trades/:id', validateTrade, (req, res) => {
   const { symbol, side, quantity, price, trade_date, note, source } = req.body;
   const existing = db.prepare('SELECT id FROM set_manual_trades WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Trade not found' });
@@ -49,8 +39,6 @@ router.delete('/trades/:id', (req, res) => {
   db.prepare('DELETE FROM set_manual_trades WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
-
-// --- Yahoo Finance live prices for SET symbols ---
 
 router.get('/prices', async (req, res, next) => {
   try {

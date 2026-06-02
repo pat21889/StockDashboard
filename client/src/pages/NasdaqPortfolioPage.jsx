@@ -1,31 +1,20 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import TopBar from '../components/layout/TopBar';
 import TradeForm from '../components/portfolio/TradeForm';
 import PortfolioTable from '../components/portfolio/PortfolioTable';
 import PLSummary from '../components/portfolio/PLSummary';
 import StockChart from '../components/stocks/StockChart';
 import usePortfolioStore from '../store/usePortfolioStore';
-import useSocketStore from '../store/useSocketStore';
 import { useFinnhubSocket } from '../hooks/useFinnhubSocket';
-
-const FRESH_MS = 5 * 60 * 1000;
+import { useMergedPrices } from '../hooks/useMergedPrices';
 
 export default function NasdaqPortfolioPage() {
-  const { trades, loading, fetchTrades, getPositions, quotePrices, fetchQuotePrices } = usePortfolioStore();
-  const wsPrices = useSocketStore((s) => s.prices);
+  const { trades, loading, fetchTrades, getPositions, fetchQuotePrices } = usePortfolioStore();
+  const mergedPrices = useMergedPrices();
   const [chartSymbol, setChartSymbol] = useState(null);
 
-  // Only use WebSocket ticks received in the last 5 min (fresh = market is open)
-  const freshWsPrices = useMemo(() => {
-    const now = Date.now();
-    return Object.fromEntries(
-      Object.entries(wsPrices).filter(([, v]) => now - (v.receivedAt ?? 0) < FRESH_MS)
-    );
-  }, [wsPrices]);
-
-  const mergedPrices = useMemo(() => ({ ...quotePrices, ...freshWsPrices }), [quotePrices, freshWsPrices]);
-  const positions = getPositions(mergedPrices);
-  const symbols = positions.map((p) => p.symbol);
+  const positions = useMemo(() => getPositions(mergedPrices), [mergedPrices, getPositions]);
+  const symbols = useMemo(() => positions.map((p) => p.symbol), [positions]);
 
   useFinnhubSocket(symbols);
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import backend from '../api/backend';
+import { calculatePositions } from '../utils/calculatePositions';
 
 const QUOTE_CACHE_MS = 5 * 60 * 1000;
 
@@ -8,7 +9,6 @@ const usePortfolioStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  // REST-seeded prices (Yahoo Finance via backend) — shared across pages
   quotePrices: {},
   quotesFetchedAt: 0,
 
@@ -46,27 +46,7 @@ const usePortfolioStore = create((set, get) => ({
     set((state) => ({ trades: state.trades.filter((t) => t.id !== id) }));
   },
 
-  // Compute per-symbol aggregated positions from trades list
-  getPositions: (livePrices) => {
-    const { trades } = get();
-    const map = {};
-    for (const t of trades) {
-      if (!map[t.symbol]) map[t.symbol] = { symbol: t.symbol, totalQty: 0, totalCost: 0 };
-      const qty = t.side === 'BUY' ? t.quantity : -t.quantity;
-      map[t.symbol].totalQty += qty;
-      map[t.symbol].totalCost += t.side === 'BUY' ? t.quantity * t.price : 0;
-    }
-    return Object.values(map)
-      .filter((p) => p.totalQty > 0)
-      .map((p) => {
-        const avgCost = p.totalCost / p.totalQty;
-        const currentPrice = livePrices[p.symbol]?.price ?? null;
-        const marketValue = currentPrice != null ? currentPrice * p.totalQty : null;
-        const unrealizedPL = marketValue != null ? marketValue - avgCost * p.totalQty : null;
-        const plPct = unrealizedPL != null ? (unrealizedPL / (avgCost * p.totalQty)) * 100 : null;
-        return { symbol: p.symbol, quantity: p.totalQty, avgCost, currentPrice, marketValue, unrealizedPL, plPct };
-      });
-  },
+  getPositions: (livePrices) => calculatePositions(get().trades, livePrices),
 }));
 
 export default usePortfolioStore;

@@ -1,4 +1,5 @@
 import { useStockSearch } from '../../hooks/useStockSearch';
+import MarketBadge from '../common/MarketBadge';
 
 export default function SearchPanel({ onSelect, onAddFavorite, isFavorite }) {
   const { query, setQuery, results, loading } = useStockSearch('all');
@@ -38,11 +39,7 @@ export default function SearchPanel({ onSelect, onAddFavorite, isFavorite }) {
                   <div className="text-sm font-medium text-white truncate">{r.symbol}</div>
                   {r.name && <div className="text-xs text-gray-400 truncate">{r.name}</div>}
                 </div>
-                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                  r.market === 'US' ? 'bg-blue-900/60 text-blue-300' : 'bg-orange-900/60 text-orange-300'
-                }`}>
-                  {r.market}
-                </span>
+                <MarketBadge market={r.market} />
               </div>
               <button
                 onClick={e => { e.stopPropagation(); onAddFavorite(r.symbol, r.market, r.name); }}
